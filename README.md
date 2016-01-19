@@ -1,5 +1,5 @@
-Python driver for UNI-T UT2000 series scopes
-============================================
+Python driver for UNI-T UT2000 series digital oscilloscopes
+===========================================================
 
 Fork from [dnet/ut2025b](https://github.com/dnet/ut2025b). [Original website](http://hsbp.org/ut2025b)
 
@@ -16,7 +16,7 @@ Probably compatible with other UT2000 series devices as well.
 Setup
 -----
 
-- Install PyUSB 1.0 (http://sourceforge.net/projects/pyusb/)
+- Install PyUSB 1.0 (https://github.com/walac/pyusb)
 - Install PIL
 
 Usage
@@ -27,7 +27,7 @@ Usage
 
 You should do this as root / Administrator as it manipulates USB directly.
 In case of an "Image transfer error, try again" message, just keep trying,
-after 10 or so attempts, it starts to work, and continues to do so, until the
+after a few attempts it starts to work and continues to do so, as long as the
 scope is connected to the PC.
 
 If the exit value is 0, and no output is printed on stderr, the binary
