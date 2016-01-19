@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# pd2pdf.py - converts a UT2025B scope screenshot to PNG
+# pd2pdf.py - converts a UT2000 series scope screenshot to PNG
 #
-# Copyright (c) 2011 András Veres-Szentkirályi
+# Copyright (c) 2011 András Veres-Szentkirályi and contributors
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -27,34 +27,51 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import with_statement, division
+import argparse
 from PIL import Image
-import sys, os
+import sys
+import os
 
-if len(sys.argv) < 3:
-    print >>sys.stderr, 'Usage: {0} <input.bin> <output.png> [colormaps/map.txt]'.format(sys.argv[0])
-    sys.exit(1)
 
-colormap_fn = (os.path.join('colormaps', 'monochrome.txt')
-        if len(sys.argv) < 4 else sys.argv[3])
-with file(colormap_fn, 'r') as colormap_file:
+parser = argparse.ArgumentParser(description='Convert raw data from scope to png')
+parser.add_argument('input', help='Path to binary input file. Pass - for stdin',
+                    type=argparse.FileType('r'))
+parser.add_argument('output', help='Path to png output file',
+                    type=argparse.FileType('w'))
+parser.add_argument('--colormap', dest='colormap', default='colormaps/simple.txt',
+                    help='Path to colormap file')
+parser.add_argument('--magnify', dest='magnify',
+                    default=1, type=int, metavar='N',
+                    help='Magnification factor (nearest neighbour resampling)')
+
+args = parser.parse_args()
+
+with file(args.colormap, 'r') as colormap_file:
     COLORMAP = [tuple(int(i) for i in row.split(',')) for row in colormap_file]
 
-x, y = 0, 0
+
 WIDTH, HEIGHT = 320, 240
 
 img = Image.new('RGB', (WIDTH, HEIGHT))
 
+#if not args.input:
+#    args.input = sys.stdin
+
 try:
-    with file(sys.argv[1], 'rb') as dump:
-        for _ in xrange(WIDTH * HEIGHT // 4):
-            value = dump.read(2)
-            for binval in reversed([ord(ch) for ch in value]):
-                for half in (binval >> 4, binval & 0x0f):
-                    color = COLORMAP[half]
-                    img.putpixel((x, y), color)
-                    x += 1
-                    if x == WIDTH:
-                        x = 0
-                        y += 1
+    x, y = 0, 0
+    for _ in xrange(WIDTH * HEIGHT // 4):
+        value = args.input.read(2)
+        for binval in reversed([ord(ch) for ch in value]):
+            for half in (binval >> 4, binval & 0x0f):
+                color = COLORMAP[half]
+                img.putpixel((x, y), color)
+                x += 1
+                if x == WIDTH:
+                    x = 0
+                    y += 1
 finally:
-    img.save(sys.argv[2])
+    img = img.resize((WIDTH * args.magnify, HEIGHT * args.magnify), resample=Image.NEAREST)
+    if args.output is sys.stdout:
+        print img
+    else:
+        img.save(args.output)

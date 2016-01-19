@@ -1,12 +1,30 @@
-FLOSS Python driver for UNI-T UT2025B scopes
-============================================
+FLOSS Python driver for UNI-T UT2000 series scopes
+==================================================
 
-[![Flattr Button](http://api.flattr.com/button/button-static-50x60.png "Flattr This!")](https://flattr.com/thing/432544/FLOSS-Python-driver-for-UNI-T-UT2025B-scopes "Flattr")
+Fork from [dnet/ut2025b](https://github.com/dnet/ut2025b)
+
+Support
+-------
+
+Tested with
+
+- UT2025B
+- UT2102C
+
+Probably compatible with other UT2000 series devices as well.
+
+Setup
+-----
+
+- Install PyUSB 1.0 (http://sourceforge.net/projects/pyusb/)
+- Install PIL
 
 Usage
 -----
 
-Connect the scope via USB, and issue the `python getshot.py >foo.bin` command.
+* Connect the scope via USB
+* `python getshot.py > foo.bin`
+
 You should do this as root / Administrator as it manipulates USB directly.
 In case of an "Image transfer error, try again" message, just keep trying,
 after 10 or so attempts, it starts to work, and continues to do so, until the
@@ -16,13 +34,17 @@ If the exit value is 0, and no output is printed on stderr, the binary
 screenshot is ready in the `foo.bin` file. It can be converted to PNG by
 issuing the following command.
 
-	python pd2png.py foo.bin foo.png
+* `python pd2png.py foo.bin foo.png`
 
-An optional third parameter can be used to specify a colormap, which transforms
-the 4-bit image to RGB values. The default is monochrome, but the format is
-straightforward enought for everyone to create new and better ones. A colormap
+Check `python pd2png.py -h` for optional parameters. You can specify a colormap which transforms
+the 4-bit image to RGB values. The default is a simple color map with light background,
+but the format is straightforward enought for everyone to create new and better ones. A colormap
 file must contain at least 16 lines, each containing three numbers (red, green,
-and blue values 0-255) separated by comma.
+and blue values 0-255) separated by comma. You can optionally also magnify the resulting image.
+
+You can do everything in one step:
+
+* `python getshot.py | python pd2png.py - foo.png`
 
 License
 -------

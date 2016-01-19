@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# getshot.py - gets a single screenshot from an UT2025B scope
+# getshot.py - gets a single screenshot from an UT2000 series scope
 #
-# Copyright (c) 2011 András Veres-Szentkirályi
+# Copyright (c) 2011 András Veres-Szentkirályi and contributors
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -26,10 +26,22 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import usb.core, sys
+import usb.core
+import sys
+
+"""
+List of supported USB devices
+    vendor id, product id, description
+"""
+devices = [
+    (0x5656, 0x0832, 'UT2025B'),
+    (0x5656, 0x0834, 'UT2102C')
+]
+
 
 class Endpoint(object):
     BULK_IN = 0x82
+
 
 class ReqType(object):
     VENDOR_REQUEST = 0x40
@@ -38,9 +50,14 @@ class ReqType(object):
     HOST_TO_DEVICE = 0x00
 
     CTRL_OUT = RECIPIENT_ENDPOINT | VENDOR_REQUEST | HOST_TO_DEVICE
-    CTRL_IN  = RECIPIENT_ENDPOINT | VENDOR_REQUEST | DEVICE_TO_HOST
+    CTRL_IN = RECIPIENT_ENDPOINT | VENDOR_REQUEST | DEVICE_TO_HOST
 
-dev = usb.core.find(idVendor=0x5656, idProduct=0x0832)
+
+for device in devices:
+    dev = usb.core.find(idVendor=device[0], idProduct=device[1])
+    if dev:  # Found a device
+        break
+
 if dev is None:
     print >>sys.stderr, 'USB device cannot be found, check connection'
     sys.exit(1)
