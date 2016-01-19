@@ -1,7 +1,7 @@
-FLOSS Python driver for UNI-T UT2000 series scopes
-==================================================
+Python driver for UNI-T UT2000 series scopes
+============================================
 
-Fork from [dnet/ut2025b](https://github.com/dnet/ut2025b)
+Fork from [dnet/ut2025b](https://github.com/dnet/ut2025b). [Original website](http://hsbp.org/ut2025b)
 
 Support
 -------
