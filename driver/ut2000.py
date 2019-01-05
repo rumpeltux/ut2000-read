@@ -3,21 +3,26 @@ from __future__ import division
 import usb.core
 import sys
 import time
+import numpy as np
 from .base import USBDevice
+   
+class Endpoint(object):
+    BULK_IN = 0x82
+    BULK_OUT = 2
 
+class ReqType(object):
+    VENDOR_REQUEST = 0x40
+    RECIPIENT_ENDPOINT = 0x02
+    DEVICE_TO_HOST = 0x80
+    HOST_TO_DEVICE = 0x00
 
-class UT2000(USBDevice):
+    CTRL_OUT = RECIPIENT_ENDPOINT | VENDOR_REQUEST | HOST_TO_DEVICE
+    CTRL_IN = RECIPIENT_ENDPOINT | VENDOR_REQUEST | DEVICE_TO_HOST
+    
+class AbstractUT2000(USBDevice):
     """
     UT2xxx series digital storage oscilloscopes
     """
-
-    # List of supported devices
-    # vendor id, product id, description
-    devices = [
-        (0x5656, 0x0832, 'UT2025B'),
-        (0x5656, 0x0834, 'UT2102C')
-    ]
-
     X_OFFSET_NULL = 3803
     DATA_CH1 = 0xf9
     DATA_CH2 = 0xfa
@@ -30,120 +35,154 @@ class UT2000(USBDevice):
     CHANNEL_STATE = 2
     CH_OFFSET = 32
     Y_SENSE_CH1 = 5
-    Y_SENSE_CH2 = Y_SENSE_CH1 + CH_OFFSET
     Y_POS_CH1 = 6
-    Y_POS_CH2 = Y_POS_CH1 + CH_OFFSET
     Y_PROBE_CH1 = 19
-    Y_PROBE_CH2 = Y_PROBE_CH1 + CH_OFFSET
     COUPLING_CH1 = 12
-    COUPLING_CH2 = COUPLING_CH1 + CH_OFFSET
     X_SCALE_CH1 = 10
-    X_SCALE_CH2 = 10 + CH_OFFSET
     X_CURSOR_CH1 = 11
-    X_CURSOR_CH2 = 11 + CH_OFFSET
     BW_LIMIT_CH1 = 15
-    BW_LIMIT_CH2 = 15 + CH_OFFSET
     INVERTED_CH1 = 9
-    INVERTED_CH2 = 9 + CH_OFFSET
-
-    class Endpoint(object):
-        BULK_IN = 0x82
-
-    class ReqType(object):
-        VENDOR_REQUEST = 0x40
-        RECIPIENT_ENDPOINT = 0x02
-        DEVICE_TO_HOST = 0x80
-        HOST_TO_DEVICE = 0x00
-
-        CTRL_OUT = RECIPIENT_ENDPOINT | VENDOR_REQUEST | HOST_TO_DEVICE
-        CTRL_IN = RECIPIENT_ENDPOINT | VENDOR_REQUEST | DEVICE_TO_HOST
-
+    
     def __init__(self, device):
-        super(UT2000, self).__init__(device)
-        self.device.ctrl_transfer(self.ReqType.CTRL_OUT, 0xB1, 0x2C, 0)
-        self.device.ctrl_transfer(self.ReqType.CTRL_IN, 0xB2, 0, 0, 8)
-
+        super().__init__(device)
+        self.connect()
+    
+    def connect(self):
+        pass
+    
+    def send_command(self, command, timeout=0):
+        raise NotImplementedError()
+    
+    def attach(self):
+        self.send_command(0xf0)
+        
+    def detach(self):
+        self.send_command(0xf1)
+    
     def get_screenshot(self):
-        buf = None
-        for i in [0xF0] + [0x2C] * 10 + [0xCC] * 10 + [0xE2]:
-            self.device.ctrl_transfer(self.ReqType.CTRL_OUT, 0xB1, i, 0)
-        time.sleep(0.05)
-        self.device.ctrl_transfer(self.ReqType.CTRL_OUT, 0xB0, 0, 38)
-        try:
-            for bufsize in [8192] * 4 + [6144]:
-                buf = self.device.read(self.Endpoint.BULK_IN, bufsize)
-        except usb.core.USBError:
-            print >>sys.stderr, e
-            print >>sys.stderr, 'Image transfer error, try again'
-            sys.exit(1)
-        finally:
-            # leave 'far mode'
-            self.device.ctrl_transfer(self.ReqType.CTRL_OUT, 0xB1, 0xF1, 0)
-        return bug
-
+        self.attach()
+        self.send_command(0xe2)
+        self._prepage_get_screenshot()
+        buf = self.device.read(Endpoint.BULK_IN, self._screenshot_size(),
+                               timeout=1000)
+        self.detach()
+        return buf
+    
+    def _prepare_get_screenshot(self):
+        pass
+    
+    def _screenshot_size(self):
+        return self.SCREEN_RESOLUTION[0] * self.SCREEN_RESOLUTION[1] / 2
+    
     def get_data(self):
-        for i in [0xF0] + [0x2C] * 10 + [0xDC] * 10 + [0xCC] * 10 + [0xE1]:
-            self.device.ctrl_transfer(self.ReqType.CTRL_OUT, 0xB1, i, 0)
-        time.sleep(0.05)
-        self.device.ctrl_transfer(self.ReqType.CTRL_OUT, 0xB0, 0x01, 2)
-        try:
-            data = self.device.read(self.Endpoint.BULK_IN, 1024)
-        except usb.core.USBError, e:
-            print >>sys.stderr, e
-            print >>sys.stderr, 'Data transfer error, try again'
-            sys.exit(1)
-        finally:
-            # leave 'far mode'
-            self.device.ctrl_transfer(self.ReqType.CTRL_OUT, 0xB1, 0xF1, 0)
-        return data
-
-    def get_samples(self, output_file):
+        self.attach()
+        self.send_command(0xe1)
+        self._prepare_get_data()
+        buf = self.device.read(Endpoint.BULK_IN, 2560, timeout=200)
+        self.detach()
+        return buf
+    
+    def _prepare_get_data(self):
+        pass
+    
+    def parse_header(self, header, channel):
+        """channel is 0 or 1"""
+        return dict(
+            V_div= self.Y_RANGE[header[self.Y_SENSE_CH1]]*(10**(header[self.Y_PROBE_CH1])),
+            V_div_index = header[self.Y_SENSE_CH1],
+            probe = 10**(header[self.Y_PROBE_CH1]),
+            probe_index = header[self.Y_PROBE_CH1],
+            couple = self.COUPLING[header[self.COUPLING_CH1]],
+            couple_index= header[self.COUPLING_CH1],
+            s_div = self.X_RANGE[header[self.X_SCALE_CH1]],
+            s_div_index = header[self.X_SCALE_CH1],
+            active= bool(header[self.CHANNEL_STATE] & (1 << channel)),
+            y_offset = 0x7e - header[self.Y_POS_CH1],
+            Bw_limit = bool(header[self.BW_LIMIT_CH1]),
+            inverted = bool(header[self.INVERTED_CH1]),
+            x_offset = header[self.X_CURSOR_CH1],
+            x_poz = (header[8] << 8) + header[7],
+        )
+    
+    def get_samples(self):
         data = self.get_data()
-        channels = [{}, {}]
-        #channels[0]["header"] = data[0:32]
-        #channels[1]["header"] = data[32:64]
-        channels[0]["V_div"] = self.Y_RANGE[data[self.Y_SENSE_CH1]]*(10**(data[self.Y_PROBE_CH1]))
-        channels[0]["V_div_index"] = data[self.Y_SENSE_CH1]
-        channels[1]["V_div"] = self.Y_RANGE[data[self.Y_SENSE_CH2]]*(10**(data[self.Y_PROBE_CH2]))
-        channels[1]["V_div_index"] = data[self.Y_SENSE_CH2]
-        channels[0]["probe"] = 10**(data[self.Y_PROBE_CH1])
-        channels[0]["probe_index"] = data[self.Y_PROBE_CH1]
-        channels[1]["probe"] = 10**(data[self.Y_PROBE_CH2])
-        channels[1]["probe_index"] = data[self.Y_PROBE_CH2]
-        channels[0]["couple"] = self.COUPLING[data[self.COUPLING_CH1]]
-        channels[1]["couple"] = self.COUPLING[data[self.COUPLING_CH2]]
-        channels[0]["couple_index"] = data[self.COUPLING_CH1]
-        channels[1]["couple_index"] = data[self.COUPLING_CH2]
-        # save samples data to buffers
-        if len(data) == 1024:
-            channels[0]["samples"] = data[516:766].tolist()
-            channels[1]["samples"] = data[770:1020].tolist()
-        elif len(data) == 2560:
-            channels[0]["samples"] = data[516:1266].tolist()
-            channels[1]["samples"] = data[1520:2270].tolist()
-        else:
-            print >>sys.stderr, "Err: Unexcepted length of data sample, no data decoded then."
-        channels[0]["s_div"] = self.X_RANGE[data[self.X_SCALE_CH1]]
-        channels[0]["s_div_index"] = data[self.X_SCALE_CH1]
-        channels[1]["s_div"] = self.X_RANGE[data[self.X_SCALE_CH2]]
-        channels[1]["s_div_index"] = data[self.X_SCALE_CH2]
-        channels[0]["active"] = bool(data[self.CHANNEL_STATE] & 0x01)
-        channels[1]["active"] = bool(data[self.CHANNEL_STATE] & 0x02)
-        channels[0]["y_offset"] = 0x7e - data[self.Y_POS_CH1]
-        channels[1]["y_offset"] = 0x7e - data[self.Y_POS_CH2]
-        channels[0]["Bw_limit"] = bool(data[self.BW_LIMIT_CH1])
-        channels[1]["Bw_limit"] = bool(data[self.BW_LIMIT_CH2])
-        channels[0]["inverted"] = bool(data[self.INVERTED_CH1])
-        channels[1]["inverted"] = bool(data[self.INVERTED_CH2])
-        channels[0]["x_offset"] = data[self.X_CURSOR_CH1]
-        channels[1]["x_offset"] = data[self.X_CURSOR_CH2]
-        channels[0]["x_poz"] = (data[8] << 8) + data[7]
-        channels[1]["x_poz"] = (data[40] << 8) + data[39]
+        channels = [self.parse_header(data[:0x20], 0),
+                    self.parse_header(data[0x20:0x40], 1)]
 
         # Convert binary reading to voltage
-        for channel in channels:
-            channel["samples_volt"] = [((y-channel["y_offset"])/255 - 0.5)*channel["V_div"]*10 for y in channel["samples"]]
+        for i, channel in enumerate(channels):
+            raw_samples = self.get_raw_samples(data, i)
+            print(repr(raw_samples))
+            if raw_samples:
+                raw_samples = np.array(raw_samples, np.uint8)
+                channel['samples'] = raw_samples
+                channel["samples_volt"] = (
+                    raw_samples.astype(np.float) - 130) / 256 * channel['V_div'] * 10
+                # TODO the other class uses different values
             channel["sample_period"] = channel["s_div"] * 10
             channel["s_offset"] = channel["x_offset"]/255 * channel["s_div"]
 
         return channels
+    
+    def get_raw_samples(self, data, channel):
+        raise NotImplementedError()
+
+class UT2052CEL(AbstractUT2000):
+    SCREEN_RESOLUTION = (400, 240)
+    Y_RANGE = [0] + AbstractUT2000.Y_RANGE
+
+    def send_command(self, command, timeout=0):
+        self.device.write(Endpoint.BULK_OUT, bytearray([command]), timeout)
+    
+    def _prepare_screenshot(self):
+        metadata = self.device.read(Endpoint.BULK_IN, 64, timeout=100)
+        
+    def get_raw_samples(self, data, channel):
+        data = data[0x40:]  # strip the header
+        samples = len(data)//2
+        garbage_size = 20
+        return (data[:samples] if channel == 0 else data[samples:])[:-garbage_size]
+
+
+class UT2025B(AbstractUT2000):
+    SCREEN_RESOLUTION = (320, 240)
+
+    def connect(self):
+        self.send_command( 0x2C, 0)
+        self.device.ctrl_transfer(ReqType.CTRL_IN, 0xB2, 0, 0, 8)
+
+    def send_command(self, command, timeout=0):
+        self.device.ctrl_transfer(ReqType.CTRL_OUT, 0xB1, command, timeout)
+    
+    def attach(self):
+        super().attach()
+        for i in [0x2C] * 10 + [0xCC] * 10:
+            self.send_command(i)
+
+    def _prepare_get_screenshot(self):
+        time.sleep(0.05)
+        self.device.ctrl_transfer(ReqType.CTRL_OUT, 0xB0, 0, 38)
+
+    def _prepare_get_data(self):
+        time.sleep(0.05)
+        self.device.ctrl_transfer(ReqType.CTRL_OUT, 0xB0, 0x01, 2)
+        
+    def get_raw_samples(self, data, channel):
+        if len(data) == 1024:
+            return data[516:766] if channel == 0 else data[770:1020]
+        elif len(data) == 2560:
+            return data[516:1266] if channel == 0 else data[1520:2270]
+        else:
+            print('data =', repr(data), file=sys.stderr)
+            raise RuntimeError("Unexcepted length of data sample (%d), no data decoded then." % len(data))
+
+def open():
+    devices = [
+        (0x5656, 0x0832, UT2025B),
+        (0x5656, 0x0834, UT2025B), # UT2102C
+        (0x4348, 0x5537, UT2052CEL)
+    ]
+    for vendor, product, cls in devices:
+        dev = usb.core.find(idVendor=vendor, idProduct=product)
+        if dev:  # Found a device
+            return cls(dev)

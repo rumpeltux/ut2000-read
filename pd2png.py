@@ -59,7 +59,7 @@ img = Image.new('RGB', (WIDTH, HEIGHT))
 
 try:
     x, y = 0, 0
-    args.input.read(64)
+    print args.input.read(64)
     for _ in xrange(WIDTH * HEIGHT):
         value = args.input.read(2)
     #for binval in bytearray(args.input.read()):
