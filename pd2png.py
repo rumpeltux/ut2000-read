@@ -41,7 +41,7 @@ parser.add_argument('output', help='Path to png output file',
 parser.add_argument('--colormap', dest='colormap', default='colormaps/simple.txt',
                     help='Path to colormap file')
 parser.add_argument('--magnify', dest='magnify',
-                    default=1, type=int, metavar='N',
+                    default=2, type=int, metavar='N',
                     help='Magnification factor (nearest neighbour resampling)')
 
 args = parser.parse_args()
@@ -50,7 +50,7 @@ with file(args.colormap, 'r') as colormap_file:
     COLORMAP = [tuple(int(i) for i in row.split(',')) for row in colormap_file]
 
 
-WIDTH, HEIGHT = 320, 240
+WIDTH, HEIGHT = 400, 240*4
 
 img = Image.new('RGB', (WIDTH, HEIGHT))
 
@@ -59,11 +59,16 @@ img = Image.new('RGB', (WIDTH, HEIGHT))
 
 try:
     x, y = 0, 0
-    for _ in xrange(WIDTH * HEIGHT // 4):
+    args.input.read(64)
+    for _ in xrange(WIDTH * HEIGHT):
         value = args.input.read(2)
+    #for binval in bytearray(args.input.read()):
         for binval in reversed([ord(ch) for ch in value]):
             for half in (binval >> 4, binval & 0x0f):
                 color = COLORMAP[half]
+            #    value <<= 4
+            #    color = (value, value, value)
+            #if 1:
                 img.putpixel((x, y), color)
                 x += 1
                 if x == WIDTH:

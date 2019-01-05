@@ -35,12 +35,14 @@ List of supported USB devices
 """
 devices = [
     (0x5656, 0x0832, 'UT2025B'),
-    (0x5656, 0x0834, 'UT2102C')
+    (0x5656, 0x0834, 'UT2102C'),
+    (0x4348, 0x5537, 'UT2052CEL')
 ]
 
 
 class Endpoint(object):
     BULK_IN = 0x82
+    BULK_OUT = 2
 
 
 class ReqType(object):
@@ -61,19 +63,31 @@ for device in devices:
 if dev is None:
     print >>sys.stderr, 'USB device cannot be found, check connection'
     sys.exit(1)
+    
+def send_control_command(value):
+    if 0:
+        dev.ctrl_transfer(ReqType.CTRL_OUT, 177, i, 0)
+    else:
+        dev.write(Endpoint.BULK_OUT, bytearray([value]))
 
 dev.set_configuration()
-dev.ctrl_transfer(ReqType.CTRL_OUT, 177, 0x2C, 0)
-dev.ctrl_transfer(ReqType.CTRL_IN, 178, 0, 0, 8)
-for i in [0xF0] + [0x2C] * 10 + [0xCC] * 10 + [0xE2]:
-    dev.ctrl_transfer(ReqType.CTRL_OUT, 177, i, 0)
+
+if 0:
+    dev.ctrl_transfer(ReqType.CTRL_OUT, 177, 0x2C, 0)
+    dev.ctrl_transfer(ReqType.CTRL_IN, 178, 0, 0, 8)
+else:
+    send_control_command(0xe2)
+#for i in [0xF0] + [0x2C] * 10 + [0xCC] * 10 + [0xE2]:
+#    send_control_command(i)
+    #dev.ctrl_transfer(ReqType.CTRL_OUT, 177, i, 0)
 
 try:
-    dev.ctrl_transfer(ReqType.CTRL_OUT, 176, 0, 38)
-    for bufsize in [8192] * 4 + [6144]:
-        buf = dev.read(Endpoint.BULK_IN, bufsize, 0)
+    if 0:
+        dev.ctrl_transfer(ReqType.CTRL_OUT, 176, 0, 38)
+    for bufsize in [4096] * 11 + [3008]:
+        buf = dev.read(Endpoint.BULK_IN, bufsize, 100)
         buf.tofile(sys.stdout)
-    dev.ctrl_transfer(ReqType.CTRL_OUT, 177, 0xF1, 0)
+    send_control_command(0xf1)
 except usb.core.USBError:
     print >>sys.stderr, 'Image transfer error, try again'
     sys.exit(1)
