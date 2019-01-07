@@ -8,7 +8,11 @@ def read_samples():
     if dev is None:
         print('USB device cannot be found, check connection', file=sys.stderr)
         sys.exit(1)
-    return dev.get_samples()
+    dev.attach()
+    try:
+      return dev.get_samples()
+    finally:
+      dev.detach()
 
 def extract_samples(channels, sample_selector):
     return [i[sample_selector] for i in channels]
@@ -38,13 +42,13 @@ class SampleOutput(object):
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description='Convert raw data from scope to png')
+    parser = argparse.ArgumentParser(description='Read sample data from scope')
     parser.add_argument('--output', help='Define the output format',
                         choices=['plot', 'json', 'numpy'], default='plot')
     parser.add_argument('--datatype', help='What data to dump',
                         choices=['raw', 'voltage'], default='voltage')
     args = parser.parse_args()
-    
+
     channels = read_samples()
     samples = extract_samples(channels,
                               dict(raw='samples', voltage='samples_volt')[args.datatype])
