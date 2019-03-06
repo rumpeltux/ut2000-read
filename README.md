@@ -21,14 +21,17 @@ Setup
 
 - Install PyUSB 1.0 (https://github.com/walac/pyusb)
 - Install PIL
+- Install udev script:
+
+    sudo cp udev/98-uni-t.rules /etc/udev/rules.d/
 
 Usage
 -----
 
 * Connect the scope via USB
-* python3 getshot.py > foo.png
+* `python3 getshot.py > foo.png`
+* `python3 getsamples.py`
 
-You should do this as root / Administrator as it manipulates USB directly.
 In case of an "Image transfer error, try again" message, just keep trying,
 after a few attempts it starts to work and continues to do so, as long as the
 scope is connected to the PC.
