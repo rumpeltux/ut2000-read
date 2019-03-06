@@ -167,6 +167,14 @@ class UT2052CEL(AbstractUT2000):
     SCREEN_RESOLUTION = (400, 240)
     Y_RANGE = [0] + AbstractUT2000.Y_RANGE
 
+    def get_data_raw(self):
+        buf = super().get_data_raw()
+        # Sometimes the device doesn't send the header. Just try again.
+        if len(buf) != 704:
+          print('Warning: Did receive incomplete data (length=%d)' % len(buf), file=sys.stderr)
+          return self.get_data_raw()
+        return buf
+
     def send_command(self, code: int, timeout_millis: int = 0):
         self.device.write(Endpoint.BULK_OUT, bytearray([code]), timeout_millis)
         
