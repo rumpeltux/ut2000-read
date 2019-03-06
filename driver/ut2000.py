@@ -75,9 +75,16 @@ class AbstractUT2000(USBDevice):
     def get_raw_screenshot(self):
         self.send_command(0xe2)
         self._prepare_get_screenshot()
-        return self.device.read(Endpoint.BULK_IN, self._screenshot_size(),
-                                timeout=1000)
-      
+        # The device sometimes sends an additional 64-byte header.
+        # We read the screenshot with a very long timeout to give the device enough time to process.
+        buf = self.device.read(Endpoint.BULK_IN, self._screenshot_size(), timeout=1000)
+        try:
+          # If there’s trailing data, read that as well, short timeout this time.
+          buf2 = self.device.read(Endpoint.BULK_IN, 64, timeout=50)
+        except usb.core.USBError:  # [Errno 110] Operation timed out
+          return buf
+        return buf[64:] + buf2
+
     def decode_screenshot(self, buf, colormap=colormaps.simple):
         """decodes the screenshot as sent by the device."""
         width, height = self.SCREEN_RESOLUTION
