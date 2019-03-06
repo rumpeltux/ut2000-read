@@ -26,7 +26,7 @@ Usage
 -----
 
 * Connect the scope via USB
-* python getshot.py > foo.png
+* python3 getshot.py > foo.png
 
 You should do this as root / Administrator as it manipulates USB directly.
 In case of an "Image transfer error, try again" message, just keep trying,

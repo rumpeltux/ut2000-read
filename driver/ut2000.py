@@ -6,7 +6,7 @@ import time
 from PIL import Image
 import numpy as np
 from .base import USBDevice
-import .colormaps
+from . import colormaps
    
 class Endpoint(object):
     BULK_IN = 0x82
@@ -55,7 +55,7 @@ class AbstractUT2000(USBDevice):
     def connect(self):
         pass
     
-    def send_command(self, code: int, timeout_millis=0: int):
+    def send_command(self, code: int, timeout_millis: int = 0):
         """Device specific implementation to send a command code."""
         raise NotImplementedError()
     
@@ -70,35 +70,38 @@ class AbstractUT2000(USBDevice):
     def get_screenshot(self, **kwargs):
         """Acquire and decode a screenshot. See also #decode_screenshot."""
         buf = self.get_raw_screenshot()
-        return self.decode_screenshot(**kwargs)
+        return self.decode_screenshot(buf, **kwargs)
         
     def get_raw_screenshot(self):
         self.send_command(0xe2)
-        self._prepage_get_screenshot()
+        self._prepare_get_screenshot()
         return self.device.read(Endpoint.BULK_IN, self._screenshot_size(),
                                 timeout=1000)
       
     def decode_screenshot(self, buf, colormap=colormaps.simple):
         """decodes the screenshot as sent by the device."""
-        width, height = self.SCREEN_RESOLUTION[0]
-        for pos in xrange(0, self._screenshot_size(), 2):
+        width, height = self.SCREEN_RESOLUTION
+        img = Image.new('RGB', (width, height))
+        x, y = 0, 0
+        for pos in range(0, self._screenshot_size(), 2):
           # bytes '\xAB\xCD' results in pixels C, D, A, B
           value = buf[pos:pos+2]
           for binval in reversed(value):
             for half in (binval >> 4, binval & 0x0f):
-              color = COLORMAP[half]
+              color = colormap[half]
               img.putpixel((x, y), color)
               x += 1
-              if x == WIDTH:
+              if x == width:
                   x = 0
                   y += 1
+        return img
 
     def _prepare_get_screenshot(self):
         """Additional commands etc to send before acquiring a screenshot."""
         pass
     
     def _screenshot_size(self):
-        return self.SCREEN_RESOLUTION[0] * self.SCREEN_RESOLUTION[1] / 2
+        return self.SCREEN_RESOLUTION[0] * self.SCREEN_RESOLUTION[1] // 2
     
     def get_data_raw(self):
         """Reads the recorded samples and metadata. Returns the raw buffer."""
@@ -157,8 +160,11 @@ class UT2052CEL(AbstractUT2000):
     SCREEN_RESOLUTION = (400, 240)
     Y_RANGE = [0] + AbstractUT2000.Y_RANGE
 
-    def send_command(self, code: int, timeout_millis=0: int):
-        self.device.write(Endpoint.BULK_OUT, bytearray([code]), timeout)
+    def send_command(self, code: int, timeout_millis: int = 0):
+        self.device.write(Endpoint.BULK_OUT, bytearray([code]), timeout_millis)
+        
+    def get_raw_screenshot(self):
+        return super().get_raw_screenshot()[0x80:]  # strip the header
 
     def get_raw_samples(self, data, channel):
         data = data[0x40:]  # strip the header
@@ -177,7 +183,7 @@ class UT2025B(AbstractUT2000):
         self.send_command( 0x2C, 0)
         self.device.ctrl_transfer(ReqType.CTRL_IN, 0xB2, 0, 0, 8)
 
-    def send_command(self, code: int, timeout_millis=0: int):
+    def send_command(self, code: int, timeout_millis: int = 0):
         self.device.ctrl_transfer(ReqType.CTRL_OUT, 0xB1, code, timeout_millis)
 
     def attach(self):
