@@ -177,9 +177,6 @@ class UT2052CEL(AbstractUT2000):
 
     def send_command(self, code: int, timeout_millis: int = 0):
         self.device.write(Endpoint.BULK_OUT, bytearray([code]), timeout_millis)
-        
-    def get_raw_screenshot(self):
-        return super().get_raw_screenshot()[0x80:]  # strip the header
 
     def get_raw_samples(self, data, channel):
         data = data[0x40:]  # strip the header
