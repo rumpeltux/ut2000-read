@@ -7,10 +7,12 @@ from PIL import Image
 import numpy as np
 from .base import USBDevice
 from . import colormaps
-   
+
+
 class Endpoint(object):
     BULK_IN = 0x82
     BULK_OUT = 2
+
 
 class ReqType(object):
     VENDOR_REQUEST = 0x40
@@ -20,7 +22,8 @@ class ReqType(object):
 
     CTRL_OUT = RECIPIENT_ENDPOINT | VENDOR_REQUEST | HOST_TO_DEVICE
     CTRL_IN = RECIPIENT_ENDPOINT | VENDOR_REQUEST | DEVICE_TO_HOST
-    
+
+
 class AbstractUT2000(USBDevice):
     """
     UT2xxx series digital storage oscilloscopes
@@ -28,10 +31,14 @@ class AbstractUT2000(USBDevice):
 
     # ------------------------
     # Data parsing definitions
-    Y_RANGE = [2E-3, 5E-3, 10E-3, 20E-3, 50E-3, 100E-3, 200E-3, 500E-3, 1, 2, 5]
-    X_RANGE = [0, 25E-10, 5E-9, 10E-9, 20E-9, 50E-9, 100E-9, 200E-9, 500E-9, 1E-6,
-               2E-6, 5E-6, 10E-6, 20E-6, 50E-6, 100E-6, 200E-6, 500E-6, 1E-3, 2E-3,
-               5E-3, 10E-3, 20E-3, 50E-3, 100E-3, 200E-3, 500E-3, 1, 2, 5, 10, 20, 50]
+    Y_RANGE = [
+        2E-3, 5E-3, 10E-3, 20E-3, 50E-3, 100E-3, 200E-3, 500E-3, 1, 2, 5
+    ]
+    X_RANGE = [
+        0, 25E-10, 5E-9, 10E-9, 20E-9, 50E-9, 100E-9, 200E-9, 500E-9, 1E-6,
+        2E-6, 5E-6, 10E-6, 20E-6, 50E-6, 100E-6, 200E-6, 500E-6, 1E-3, 2E-3,
+        5E-3, 10E-3, 20E-3, 50E-3, 100E-3, 200E-3, 500E-3, 1, 2, 5, 10, 20, 50
+    ]
     COUPLING = ["DC", "AC", "GND"]
 
     CHANNEL_STATE = 2
@@ -47,22 +54,22 @@ class AbstractUT2000(USBDevice):
 
     # The 0 reference value in the uint8 sample data.
     SAMPLE_BASE = 128
-    
+
     def __init__(self, device):
         super().__init__(device)
         self.connect()
-    
+
     def connect(self):
         pass
-    
+
     def send_command(self, code: int, timeout_millis: int = 0):
         """Device specific implementation to send a command code."""
         raise NotImplementedError()
-    
+
     def attach(self):
         """Enter remote control mode (may disable the on-device UI)"""
         self.send_command(0xf0)
-        
+
     def detach(self):
         """Leave remote control mode."""
         self.send_command(0xf1)
@@ -71,18 +78,19 @@ class AbstractUT2000(USBDevice):
         """Acquire and decode a screenshot. See also #decode_screenshot."""
         buf = self.get_raw_screenshot()
         return self.decode_screenshot(buf, **kwargs)
-        
+
     def get_raw_screenshot(self):
         self.send_command(0xe2)
         self._prepare_get_screenshot()
         # The device sometimes sends an additional 64-byte header.
         # We read the screenshot with a very long timeout to give the device enough time to process.
-        buf = self.device.read(Endpoint.BULK_IN, self._screenshot_size(), timeout=1000)
+        buf = self.device.read(
+            Endpoint.BULK_IN, self._screenshot_size(), timeout=1000)
         try:
-          # If there’s trailing data, read that as well, short timeout this time.
-          buf2 = self.device.read(Endpoint.BULK_IN, 64, timeout=50)
+            # If there’s trailing data, read that as well, short timeout this time.
+            buf2 = self.device.read(Endpoint.BULK_IN, 64, timeout=50)
         except usb.core.USBError:  # [Errno 110] Operation timed out
-          return buf
+            return buf
         return buf[64:] + buf2
 
     def decode_screenshot(self, buf, colormap=colormaps.simple):
@@ -139,12 +147,14 @@ class AbstractUT2000(USBDevice):
             x_offset=header[self.X_CURSOR],
             x_poz=(header[8] << 8) + header[7],
         )
-    
+
     def get_samples(self):
         """Reads the recorded samples and parses metadata. Return a dict per channel."""
         data = self.get_data()
-        channels = [self.parse_header(data[:0x20], 0),
-                    self.parse_header(data[0x20:0x40], 1)]
+        channels = [
+            self.parse_header(data[:0x20], 0),
+            self.parse_header(data[0x20:0x40], 1)
+        ]
 
         # Convert binary reading to voltage
         for i, channel in enumerate(channels):
@@ -153,15 +163,17 @@ class AbstractUT2000(USBDevice):
                 raw_samples = np.array(raw_samples, np.uint8)
                 channel['samples'] = raw_samples
                 channel["samples_volt"] = (
-                    raw_samples.astype(np.float) - self.SAMPLE_BASE) / 256 * channel['V_div'] * 10
+                    raw_samples.astype(np.float) - self.SAMPLE_BASE
+                ) / 256 * channel['V_div'] * 10
             channel["sample_period"] = channel["s_div"] * 10
-            channel["s_offset"] = channel["x_offset"]/255 * channel["s_div"]
+            channel["s_offset"] = channel["x_offset"] / 255 * channel["s_div"]
 
         return channels
-    
+
     def get_raw_samples(self, data, channel):
         """Device specific logic to extract the sample array from the data buffer."""
         raise NotImplementedError()
+
 
 class UT2052CEL(AbstractUT2000):
     SCREEN_RESOLUTION = (400, 240)
@@ -171,8 +183,10 @@ class UT2052CEL(AbstractUT2000):
         buf = super().get_data_raw()
         # Sometimes the device doesn't send the header. Just try again.
         if len(buf) != 704:
-          print('Warning: Did receive incomplete data (length=%d)' % len(buf), file=sys.stderr)
-          return self.get_data_raw()
+            print(
+                'Warning: Did receive incomplete data (length=%d)' % len(buf),
+                file=sys.stderr)
+            return self.get_data_raw()
         return buf
 
     def send_command(self, code: int, timeout_millis: int = 0):
@@ -180,7 +194,7 @@ class UT2052CEL(AbstractUT2000):
 
     def get_raw_samples(self, data, channel):
         data = data[0x40:]  # strip the header
-        samples = len(data)//2
+        samples = len(data) // 2
         garbage_size = 20
         # Contains 2x320 bytes of data. The last 20 bytes of each channel are
         # always filled with '\xff\x00' though.
@@ -192,7 +206,7 @@ class UT2025B(AbstractUT2000):
     SAMPLE_BASE = 130
 
     def connect(self):
-        self.send_command( 0x2C, 0)
+        self.send_command(0x2C, 0)
         self.device.ctrl_transfer(ReqType.CTRL_IN, 0xB2, 0, 0, 8)
 
     def send_command(self, code: int, timeout_millis: int = 0):
@@ -210,7 +224,7 @@ class UT2025B(AbstractUT2000):
     def _prepare_get_data(self):
         time.sleep(0.05)
         self.device.ctrl_transfer(ReqType.CTRL_OUT, 0xB0, 0x01, 2)
-        
+
     def get_raw_samples(self, data, channel):
         if len(data) == 1024:
             return data[516:766] if channel == 0 else data[770:1020]
@@ -218,13 +232,16 @@ class UT2025B(AbstractUT2000):
             return data[516:1266] if channel == 0 else data[1520:2270]
         else:
             print('data =', repr(data), file=sys.stderr)
-            raise RuntimeError("Unexcepted length of data sample (%d), no data decoded then." % len(data))
+            raise RuntimeError(
+                "Unexcepted length of data sample (%d), no data decoded then."
+                % len(data))
+
 
 def open():
     """scans for supported devices and returns an instance if found."""
     devices = [
         (0x5656, 0x0832, UT2025B),
-        (0x5656, 0x0834, UT2025B), # UT2102C
+        (0x5656, 0x0834, UT2025B),  # UT2102C
         (0x4348, 0x5537, UT2052CEL)
     ]
     for vendor, product, cls in devices:

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import usb.core
 
+
 class USBDevice(object):
     def __init__(self, device):
         self.device = device

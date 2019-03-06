@@ -3,6 +3,7 @@ import sys
 
 import driver.ut2000
 
+
 def read_samples():
     dev = driver.ut2000.open()
     if dev is None:
@@ -10,12 +11,14 @@ def read_samples():
         sys.exit(1)
     dev.attach()
     try:
-      return dev.get_samples()
+        return dev.get_samples()
     finally:
-      dev.detach()
+        dev.detach()
+
 
 def extract_samples(channels, sample_selector):
     return [i[sample_selector] for i in channels]
+
 
 class SampleOutput(object):
     @staticmethod
@@ -24,7 +27,7 @@ class SampleOutput(object):
         for channel in samples:
             plt.plot(channel)
         plt.show()
-    
+
     @staticmethod
     def json(channels, samples):
         import json
@@ -40,6 +43,7 @@ class SampleOutput(object):
     def numpy(samples):
         np.array(samples).save(sys.stdout)
 
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Read sample data from scope')
@@ -51,5 +55,6 @@ if __name__ == '__main__':
 
     channels = read_samples()
     samples = extract_samples(channels,
-                              dict(raw='samples', voltage='samples_volt')[args.datatype])
+                              dict(raw='samples',
+                                   voltage='samples_volt')[args.datatype])
     getattr(SampleOutput, args.output)(channels, samples)
